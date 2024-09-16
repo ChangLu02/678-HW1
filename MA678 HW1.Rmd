@@ -105,18 +105,37 @@ text(x=20, y=3/4*max(y), labels=paste("y=", intercept, " + ", slope, " * x"), co
 Take the election forecasting model and simplify it by creating a binary predictor defined as $x = 0$ if income growth is less than 2% and $x = 1$ if income growth is more than 2%.
 
 ```{r}
+
+hibbs <- read.table("hibbs.dat", header = TRUE)
+
+hibbs
+head(hibbs)
+hibbs$income_binary <- ifelse(hibbs$growth >= 2, 1, 0)
+
 ```
 
 ### 7.6a
 Compute the difference in incumbent party's vote share on average, comparing those two  groups of elections, and determine the standard error for this difference.
 
 ```{r}
+mean_group_0 <- mean(hibbs$vote[hibbs$income_binary == 0])
+mean_group_1 <- mean(hibbs$vote[hibbs$income_binary == 1])
+mean_diff <- mean_group_1 - mean_group_0
+se_group_0 <- sd(hibbs$vote[hibbs$income_binary == 0]) / sqrt(sum(hibbs$income_binary == 0))
+se_group_1 <- sd(hibbs$vote[hibbs$income_binary == 1]) / sqrt(sum(hibbs$income_binary == 1))
+se_diff <- sqrt(se_group_0^2 + se_group_1^2)
+
+mean_diff
+se_diff
 ```
 
 ### 7.6b
 Regress incumbent party's vote share on the binary predictor of income growth and check  that the resulting estimate and standard error are the same as above. 
 
 ```{r}
+model <- lm(vote ~ income_binary, data = hibbs)
+
+summary(model)
 ```
 
 ## 8.8 Comparing lm and stan_glm: 
@@ -126,18 +145,66 @@ Use simulated data to compare least squares estimation to default Bayesian regre
 Simulate 100 data points from the model, $y = 2 + 3x$ + error, with predictors $x$ drawn from a uniform distribution from 0 to 20 and with independent errors drawn from the normal distribution with mean 0 and standard deviation 5. Fit the regression of $y$ on $x$ data using `lm` and `stan_glm` (using its default settings) and check that the two programs give nearly identical results.
 
 ```{r}
+library(rstanarm)
+
+set.seed(1)
+
+n <- 100
+x <- runif(n, min = 0, max = 20)
+error <- rnorm(n, mean = 0, sd = 5)  
+
+y <- 2 + 3 * x + error
+
+lm_model <- lm(y ~ x)
+
+stan_model <- stan_glm(y ~ x, family = gaussian, refresh = 0) 
 ```
 
 ### 8.8b
 Plot the simulated data and the two fitted regression lines. 
 
 ```{r}
+plot(x, y, main = "Plot of x and y", xlab = "x", ylab = "y", pch = 16, col = "blue")
+
+
+abline(lm_model, col = "red", lwd = 2, lty = 1)
+
+abline(coef(stan_model)[1], coef(stan_model)[2], col = "green", lwd = 2, lty = 2)
+
+
+legend("topleft", legend = c("Least Squares (lm)", "Bayesian (stan_glm)"), col = c("red", "green"), lwd = 2, lty = 1:2)
 ```
 
 ### 8.8c
 Repeat the two steps above, but try to create conditions for your simulation so that `lm` and `stan_glm` give much different results. 
 
 ```{r}
+set.seed(1)
+
+n1 <- 100
+x1 <- runif(n1, min = 0, max = 20)
+error1 <- rnorm(n1, mean = 0, sd = 5)
+
+y1 <- 2 + 3 * x1 + error1
+
+stan_model <- stan_glm(y1 ~ x1, family = gaussian,
+                       prior_intercept = normal(0, 1),  
+                       prior = normal(5, 0.5),          
+                       prior_aux = exponential(1),    
+                       refresh = 0)
+
+
+lm_model <- lm(y1 ~ x1)
+
+
+plot(x, y, main = "Modified Plot of x1 and y1", xlab = "x1", ylab = "y1", pch = 16, col = "blue")
+
+
+abline(lm_model, col = "red", lwd = 2, lty = 1)
+
+abline(coef(stan_model)[1], coef(stan_model)[2], col = "green", lwd = 2, lty = 2)
+
+legend("topleft", legend = c("Least Squares (lm)", "Bayesian (stan_glm)"), col = c("red", "green"), lwd = 2, lty = 1:2) 
 ```
 
 ## 10.1 Regression with interactions: 
