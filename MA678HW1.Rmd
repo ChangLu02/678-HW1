@@ -1,0 +1,831 @@
+---
+title: "HW 1 Solutions"
+author: "Chang Lu"
+date: "Fall 2024"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+options(repos = c(CRAN = "https://cran.rstudio.com/"))
+
+knitr::opts_chunk$set(echo = TRUE)
+# install.packages("pacman")
+pacman::p_load("bayesplot","knitr","arm","ggplot2","rstanarm")
+# install.packages("tinytex")
+# tinytex::install_tinytex()
+
+```
+
+## 7.2 Fake-data simulation and regression: 
+Simulate 100 data points from the linear model, $y =  a + bx$ + error, with $a = 5$, $b = 7$, the values of $x$ being sampled at random from a uniform distribution on the range $[0, 50]$, and errors that are normally distributed with mean 0 and standard deviation 3. 
+
+### 7.2a 
+Fit a regression line to these data and display the output. 
+
+```{r}
+set.seed(1)
+
+n <- 100
+a <- 5
+b <- 7
+
+x <- runif(n, min =0, max = 50)
+error <- rnorm(n, mean = 0, sd =3)
+
+y <- a+b*x +error
+
+model <- lm(y ~ x)
+
+summary(model)
+```
+
+### 7.2b 
+Graph a scatterplot of the data and the regression line. 
+
+```{r}
+plot(x, y, main = "Scatterplot of the data", xlab = "x", ylab = "y")
+
+abline(model, col ="blue", lwd=2)
+```
+
+### 7.2c 
+Use the `text` function in R to add the formula of the fitted line to the graph. 
+
+```{r}
+plot(x, y, main = "Scatterplot of the data", xlab = "x", ylab = "y")
+
+abline(model, col ="blue", lwd=2)
+coefficients <- coef(model)
+
+intercept <- round(coefficients[1], 2)
+slope <- round(coefficients[2], 2)
+
+text(x=10, y =3/4*max(y), labels = paste("y=", intercept, "+", slope, "x" ), col ="green", pos=4)
+
+```
+
+## 7.3 Fake-data simulation and fitting the wrong model: 
+Simulate 100 data points from the model $y = a + b x + c x^2$ + error, with the values of $x$ being sampled at random from a uniform  distribution on the range $[0, 50]$, errors that are normally distributed with mean 0 and standard  deviation 3, and $a$, $b$, $c$ chosen so that a scatterplot of the data shows a clear nonlinear curve. 
+
+
+### 7.3 a
+Fit a regression line `stan_glm(y ~ x)` to these data and display the output. 
+
+```{r}
+set.seed(1)
+
+n <- 100
+a <- 3
+b <- 5
+c <- 7
+
+x1 <- runif(n, min=0, max = 50)
+error1 <- rnorm(n, mean = 0, sd =3)
+
+y1 <- a+b*x1 + c*x1^2+error1
+
+linear_model <- stan_glm(y1 ~ x1)
+
+summary(linear_model)
+
+```
+
+### 7.3b
+Graph a scatterplot of the data and the regression line. This is the best-fit linear regression.  What does “best-fit” mean in this context?
+
+```{r}
+plot(x1, y1, main = "Scatterplot", xlab = "x1", ylab = "y1", pch=19)
+
+abline(linear_model, col="blue", lwd=2)
+
+coefficients1 <- coef(linear_model)
+
+intercept1 <- round(coefficients1[1], 2)
+slope1 <- round(coefficients1[2], 2)
+text(x=20, y=3/4*max(y), labels=paste("y=", intercept, " + ", slope, " * x"), col="green", pos =4)
+```
+
+
+## 7.6 Formulating comparisons as regression models: 
+Take the election forecasting model and simplify it by creating a binary predictor defined as $x = 0$ if income growth is less than 2% and $x = 1$ if income growth is more than 2%.
+
+```{r}
+
+hibbs <- read.table("hibbs.dat", header = TRUE)
+
+hibbs
+head(hibbs)
+hibbs$income_binary <- ifelse(hibbs$growth >= 2, 1, 0)
+
+```
+
+### 7.6a
+Compute the difference in incumbent party's vote share on average, comparing those two  groups of elections, and determine the standard error for this difference.
+
+```{r}
+mean_group_0 <- mean(hibbs$vote[hibbs$income_binary == 0])
+mean_group_1 <- mean(hibbs$vote[hibbs$income_binary == 1])
+mean_diff <- mean_group_1 - mean_group_0
+se_group_0 <- sd(hibbs$vote[hibbs$income_binary == 0]) / sqrt(sum(hibbs$income_binary == 0))
+se_group_1 <- sd(hibbs$vote[hibbs$income_binary == 1]) / sqrt(sum(hibbs$income_binary == 1))
+se_diff <- sqrt(se_group_0^2 + se_group_1^2)
+
+mean_diff
+se_diff
+```
+
+### 7.6b
+Regress incumbent party's vote share on the binary predictor of income growth and check  that the resulting estimate and standard error are the same as above. 
+
+```{r}
+model <- lm(vote ~ income_binary, data = hibbs)
+
+summary(model)
+```
+
+## 8.8 Comparing lm and stan_glm: 
+Use simulated data to compare least squares estimation to default Bayesian regression: 
+
+### 8.8a
+Simulate 100 data points from the model, $y = 2 + 3x$ + error, with predictors $x$ drawn from a uniform distribution from 0 to 20 and with independent errors drawn from the normal distribution with mean 0 and standard deviation 5. Fit the regression of $y$ on $x$ data using `lm` and `stan_glm` (using its default settings) and check that the two programs give nearly identical results.
+
+```{r}
+library(rstanarm)
+
+set.seed(1)
+
+n <- 100
+x <- runif(n, min = 0, max = 20)
+error <- rnorm(n, mean = 0, sd = 5)  
+
+y <- 2 + 3 * x + error
+
+lm_model <- lm(y ~ x)
+
+stan_model <- stan_glm(y ~ x, family = gaussian, refresh = 0) 
+```
+
+### 8.8b
+Plot the simulated data and the two fitted regression lines. 
+
+```{r}
+plot(x, y, main = "Plot of x and y", xlab = "x", ylab = "y", pch = 16, col = "blue")
+
+
+abline(lm_model, col = "red", lwd = 2, lty = 1)
+
+abline(coef(stan_model)[1], coef(stan_model)[2], col = "green", lwd = 2, lty = 2)
+
+
+legend("topleft", legend = c("Least Squares (lm)", "Bayesian (stan_glm)"), col = c("red", "green"), lwd = 2, lty = 1:2)
+```
+
+### 8.8c
+Repeat the two steps above, but try to create conditions for your simulation so that `lm` and `stan_glm` give much different results. 
+
+```{r}
+set.seed(1)
+
+n1 <- 100
+x1 <- runif(n1, min = 0, max = 20)
+error1 <- rnorm(n1, mean = 0, sd = 5)
+
+y1 <- 2 + 3 * x1 + error1
+
+stan_model <- stan_glm(y1 ~ x1, family = gaussian,
+                       prior_intercept = normal(0, 1),  
+                       prior = normal(5, 0.5),          
+                       prior_aux = exponential(1),    
+                       refresh = 0)
+
+
+lm_model <- lm(y1 ~ x1)
+
+
+plot(x, y, main = "Modified Plot of x1 and y1", xlab = "x1", ylab = "y1", pch = 16, col = "blue")
+
+
+abline(lm_model, col = "red", lwd = 2, lty = 1)
+
+abline(coef(stan_model)[1], coef(stan_model)[2], col = "green", lwd = 2, lty = 2)
+
+legend("topleft", legend = c("Least Squares (lm)", "Bayesian (stan_glm)"), col = c("red", "green"), lwd = 2, lty = 1:2) 
+```
+
+## 10.1 Regression with interactions: 
+Simulate 100 data points from the model, $y = b_0 + b_1 x +  b_2 z + b_3 x z$ + error, with a continuous predictor $x$ and a binary predictor $z$, coefficients $b = c(1, 2, -1, -2)$, and errors drawn independently from a normal distribution with mean 0  and standard deviation 3, as follows. For each data point $i$, first draw $z_i$, equally likely to take on the values 0 and 1. Then draw $x_i$ from a normal distribution with mean $z_i$ and standard deviation 1. Then draw the error from its normal distribution and compute $y_i$.
+
+### 10.1a
+Display your simulated data as a graph of $y$ vs $x$, using dots and circles for the points with $z$ = 0 and 1, respectively. 
+
+```{r}
+set.seed(1)
+
+b0 <- 1
+b1 <- 2
+b2 <- -1
+b3 <- -2
+n <- 100
+
+z <- rbinom(n, 1, 0.5)
+error <- rnorm(n, mean = 0, sd = 3)
+x <- rnorm(n,mean = z, sd = 1)
+
+y <- b0 + b1 * x + b2 * z + b3 * x * z + error
+
+data <- data.frame(x = x, y = y, z = z)
+
+
+plot(data$x[data$z == 0], data$y[data$z == 0], col = "blue", pch = 16, xlab = "x", ylab = "y", main = "Scatter plot of y vs x")
+points(data$x[data$z == 1], data$y[data$z == 1], col = "red", pch = 1)
+legend("topright", legend = c("z=0", "z=1"), col = c("blue", "red"), pch = c(16, 1))
+
+```
+
+### 10.1b
+Fit a regression predicting $y$ from $x$ and $z$ with no interaction. Make a graph with the data and two parallel lines showing the fitted model. 
+
+```{r}
+model_nointeraction <- lm(y ~ x+z, data = data)
+
+plot(data$x[data$z==0], data$y[data$z==0], col="blue", pch =16, xlab = "x", ylab = "y", main = "Scatter plot of y vs x without interaction")
+points(data$x[data$z==1], data$y[data$z==1], col= "red", pch =1)
+
+abline(coef(model_nointeraction)[1]+coef(model_nointeraction)[3]*0, coef(model_nointeraction)[2], col="blue")
+abline(coef(model_nointeraction)[1]+coef(model_nointeraction)[3]*1, coef(model_nointeraction)[2], col="red")
+
+legend("topright", legend = c("z=0", "z=1"), col = c("blue", "red"), lty = 1)
+```
+
+### 10.1c
+Fit a regression predicting $y$ from $x$, $z$, and their interaction. Make a graph with the data and two lines showing the fitted model. 
+
+```{r}
+model_interaction <- lm(y ~ x * z, data = data)
+
+plot(data$x[data$z == 0], data$y[data$z == 0], col = "blue", pch = 16, xlab = "x", ylab = "y", main = "Regression with interaction")
+points(data$x[data$z == 1], data$y[data$z == 1], col = "red", pch = 1)
+
+
+abline(coef(model_interaction)[1] + coef(model_interaction)[3] * 0, coef(model_interaction)[2] + coef(model_interaction)[4] * 0, col = "blue")
+abline(coef(model_interaction)[1] + coef(model_interaction)[3] * 1, coef(model_interaction)[2] + coef(model_interaction)[4] * 1, col = "red")
+
+legend("topright", legend = c("z=0", "z=1"), col = c("blue", "red"), lty = 1)
+
+```
+
+
+## 10.2 Regression with interactions: 
+Here is the output from a fitted linear regression of outcome $y$ on  pre-treatment predictor $x$, treatment indicator $z$, and their interaction: 
+
+````{verbatim}
+            Mediam MAD_SD
+(Intercept) 1.2    0.2
+x           1.6    0.4
+z           2.7    0.3
+x:z         0.7    0.5
+
+Auxiliary parameter(s):
+      Median MAD_SD
+sigma 0.4    0.0
+````
+
+### 10.2a
+Write the equation of the estimated regression line of $y$ on $x$ for the treatment group and the control group, and the equation of the estimated regression line of $y$ on $x$ for the control group. 
+
+$y_{control}=1.2 + 1.6x$
+
+$y_{treatment}=3.9+2.3x$
+
+### 10.2b
+Graph with pen on paper the two regression lines, assuming the values of $x$ fall in the range $(0, 10)$. On this graph also include a scatterplot of data (using open circles for treated units and dots for controls) that are consistent with the fitted model. 
+
+```{r}
+beta_0 <- 1.2
+beta_1 <- 1.6
+beta_2 <- 2.7
+beta_3 <- 0.7
+
+n <- 25
+x <- runif(n, min=0, max=10)
+
+y_control <- 1.2 + 1.6*x
+y_treatment <- 3.9+2.3*x
+
+plot(x, y_control, col="blue", pch =16, xlab = "x", ylab = "y", main="Regression Plot of x and y")
+points(x, y_treatment, col="red", pch=1)
+
+lines(x, y_control, col="blue", lwd=2)
+lines(x, y_treatment, col="red", lwd=2)
+
+legend("topleft", legend = c("Control", "Treatment"), col = c("blue","red"), lty = 1, lwd = 2)
+
+```
+
+## 10.5 Regression modeling and prediction: 
+The folder `KidIQ` contains a subset of the children and mother data discussed earlier in the chapter. You have access to children's test scores at age 3,  mother's education, and the mother's age at the time she gave birth for a sample of 400 children. 
+
+```{r}
+kidiq <- read.csv("kidiq.csv")
+head(kidiq)
+```
+
+### 10.5a
+Fit a regression of child test scores on mother's age, display the data and fitted model, check assumptions, and interpret the slope coefficient. Based on this analysis, when do you recommend mothers should give birth? What are you assuming in making this recommendation? 
+```{r}
+model_age <- lm(kid_score ~ mom_age, data = kidiq)
+
+
+summary(model_age)
+
+plot(kidiq$mom_age, kidiq$kid_score, pch = 16, col = "blue",
+     xlab = "Mother's Age", ylab = "Child's Test Score",
+     main = "Child's Test Score based on Mother's Age")
+abline(model_age, col = "red", lwd = 2)
+
+```
+
+$\cdot$The regression equation is:$Kid's\   Test\  Score = 70.96 + 0.70 \times (Mother's \ Age)$. 
+
+$\cdot$For every 1-year increase in the mother's age at the time of birth, the child's test score is expected to increase by approximately 0.70 points. 
+
+$\cdot$ The $R^2$ equals to 0.008, indicating that mother;s age alone isn't a strong predictor of child test scores.
+### 10.5b
+Repeat this for a regression that further includes mother's education, interpreting both slope coefficients in this model. Have your conclusions about the timing of birth changed? 
+
+```{r}
+model_age_education <- lm(kid_score ~ mom_age + mom_hs, data = kidiq)
+
+
+summary(model_age_education)
+
+plot(kidiq$mom_age, kidiq$kid_score, pch = 16, col = kidiq$mom_hs + 1,
+     xlab = "Mother's Age", ylab = "Child's Test Score",
+     main = "Test Scores by Mother's Age and High School Completion")
+abline(a = coef(model_age_education)[1], b = coef(model_age_education)[2], col = "blue", lwd = 2) 
+abline(a = coef(model_age_education)[1] + coef(model_age_education)[3], b = coef(model_age_education)[2], col = "red", lwd = 2) 
+legend("topleft", legend = c("No HS", "HS"), col = c("blue", "red"), lty = 1, lwd = 2)
+
+```
+$\cdot$ The regression equation:$Kid's\  Test\  Score = 70.48 + 0.33 \times(Mother's\  Age) +11.31 \times(Mother\  Completed \ High \ School)$
+
+$\cdot$The coefficient for mother's age has decreased to 0.33, and it is no longer statistically significant (p-value = 0.368). This suggests that once mother's education is condidered, age is no longer a meaningful predictor of the child’s test score.
+
+$\cdot$ No. For the $R^2$ is 0.058, still very small.
+### 10.5c
+Now create an indicator variable reflecting whether the mother has completed high school or not. Consider interactions between high school completion and mother's age. Also create a plot that shows the separate regression lines for each high school completion status group. 
+
+```{r}
+kidiq$age_hs_interaction <- kidiq$mom_age * kidiq$mom_hs
+
+model_interaction <- lm(kid_score ~ mom_age * mom_hs, data = kidiq)
+
+summary(model_interaction)
+
+
+plot(kidiq$mom_age, kidiq$kid_score, pch = 16, col = kidiq$mom_hs + 1,
+     xlab = "Mother's Age", ylab = "Child's Test Score",
+     main = "Test Scores Plot")
+abline(a = coef(model_interaction)[1], b = coef(model_interaction)[2], col = "blue", lwd = 2) 
+abline(a = coef(model_interaction)[1] + coef(model_interaction)[3], b = coef(model_interaction)[2] + coef(model_interaction)[4], col = "red", lwd = 2) 
+legend("topleft", legend = c("No HS", "HS"), col = c("blue", "red"), lty = 1, lwd = 2)
+
+```
+
+### 10.5d
+Finally, fit a regression of child test scores on mother's age and education level for the first 200 children and use this model to predict test scores for the next 200. Graphically display comparisons of the predicted and actual scores for the final 200 children. 
+
+```{r}
+first_200 <- head(kidiq, 200)
+next_200 <- tail(kidiq, 200)
+
+
+model_first_200 <- lm(kid_score ~ mom_age + mom_hs, data = first_200)
+
+predicted_scores <- predict(model_first_200, newdata = next_200)
+
+
+plot(next_200$kid_score, predicted_scores, pch = 16, col = "blue",
+     xlab = "Actual Scores", ylab = "Predicted Scores", 
+     main = "Actual vs Predicted Test Scores")
+abline(0, 1, col = "red", lwd = 2) 
+
+```
+
+## 10.6 Regression models with interactions: 
+The folder `Beauty` contains data (use file `beauty.csv`) from Hamermesh and Parker (2005) on student evaluations of instructors' beauty and teaching quality for several courses at the University of Texas. The teaching evaluations were conducted at the end of the semester, and the beauty judgments were made later, by six students who had not attended the classes and were not aware of the course evaluations. 
+
+See also Felton, Mitchell, and Stinson (2003) for more on this topic. 
+
+```{r}
+beauty_data <- read.csv("beauty.csv")
+```
+
+### 10.6a
+Run a regression using beauty (the variable `beauty`) to predict course evaluations (`eval`),  adjusting for various other predictors. Graph the data and fitted model, and explain the meaning of each of the coefficients along with the residual standard deviation. Plot the residuals versus fitted values. 
+
+```{r}
+model <- lm(eval ~ beauty + female + age + minority + nonenglish + lower, data = beauty_data)
+
+summary(model)
+
+
+plot(beauty_data$beauty, beauty_data$eval, pch = 16, col = "blue",
+     xlab = "Beauty", ylab = "Evaluation Score", main = "Course Evaluation vs Beauty")
+abline(model, col = "red", lwd = 2)
+
+
+plot(fitted(model), residuals(model), pch = 16, col = "blue",
+     xlab = "Fitted Values", ylab = "Residuals", main = "Residuals vs Fitted Values")
+abline(h = 0, col = "red", lwd = 2)
+
+
+qqnorm(residuals(model))
+qqline(residuals(model), col = "red")
+
+```
+$\cdot$
+
+# 10.6a: Regression Results
+
+We ran a regression to predict course evaluations (`eval`) using beauty (`beauty`) and other predictors like gender (`female`), age (`age`), minority status (`minority`), English proficiency (`nonenglish`), and course level (`lower`).
+
+The regression model is given by:
+
+\[
+\text{eval} = \beta_0 + \beta_1 \times \text{beauty} + \beta_2 \times \text{female} + \beta_3 \times \text{age} + \beta_4 \times \text{minority} + \beta_5 \times \text{nonenglish} + \beta_6 \times \text{lower} + \epsilon
+\]
+
+Substituting the estimated coefficients, the model becomes:
+
+\[
+\hat{\text{eval}} = 4.195 + 0.140 \times \text{beauty} - 0.197 \times \text{female} - 0.002 \times \text{age} - 0.071 \times \text{minority} - 0.274 \times \text{nonenglish} + 0.098 \times \text{lower}
+\]
+
+## Interpretation of Coefficients
+
+- **Intercept (\(\beta_0 = 4.195\))**: The intercept represents the expected course evaluation score when all predictors are zero. In this case, it refers to the expected evaluation score for a male, non-minority, English-speaking instructor who teaches an upper-level course and has an average beauty score.
+
+    \[
+    \text{When all other variables are zero, } \hat{\text{eval}} = 4.195
+    \]
+
+- **Beauty (\(\beta_1 = 0.140\))**: For every 1-unit increase in the beauty score, the course evaluation score increases by approximately 0.14 points, holding all other variables constant.
+
+    \[
+    \text{A 1-unit increase in beauty increases eval by } 0.140 \text{ points.}
+    \]
+
+- **Female (\(\beta_2 = -0.197\))**: Female instructors tend to receive course evaluations that are approximately 0.20 points lower than male instructors, holding all other variables constant.
+
+    \[
+    \text{Being female decreases eval by } 0.197 \text{ points.}
+    \]
+
+- **Age (\(\beta_3 = -0.002\))**: The effect of the instructor's age on course evaluations is very small and not statistically significant. A 1-year increase in age decreases the evaluation score by about 0.002 points, but this effect is negligible.
+
+    \[
+    \text{Age has no meaningful impact on eval.}
+    \]
+
+- **Minority (\(\beta_4 = -0.071\))**: Minority instructors receive course evaluations that are approximately 0.07 points lower than non-minority instructors, but this effect is not statistically significant.
+
+    \[
+    \text{Being a minority decreases eval by } 0.071 \text{ points, though not significant.}
+    \]
+
+- **Non-English (\(\beta_5 = -0.274\))**: Instructors whose primary language is not English receive course evaluations that are approximately 0.27 points lower than native English speakers, holding all other variables constant.
+
+    \[
+    \text{Being non-English speaking decreases eval by } 0.274 \text{ points.}
+    \]
+
+- **Lower-level Course (\(\beta_6 = 0.098\))**: Teaching a lower-level course is associated with a small increase in course evaluation scores of about 0.10 points, though the effect is only marginally significant.
+
+    \[
+    \text{Teaching a lower-level course increases eval by } 0.098 \text{ points.}
+    \]
+
+## Residual Standard Deviation
+
+The residual standard deviation represents the typical deviation of the actual evaluation scores from the predicted scores, providing an indication of the model's error.
+
+
+### 10.6b
+Fit some other models, including beauty and also other predictors. Consider at least one model with interactions. For each model, explain the meaning of each of its estimated coefficients.
+
+```{r}
+model_interaction <- lm(eval ~ beauty * female + age, data = beauty_data)
+
+summary(model_interaction)
+
+plot(model_interaction$fitted.values, residuals(model_interaction),
+     xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residuals vs Fitted Values")
+abline(h = 0, col = "red")
+
+model_interaction_2 <- lm(eval ~ beauty * nonenglish + female, data = beauty_data)
+
+summary(model_interaction_2)
+
+plot(model_interaction_2$fitted.values, residuals(model_interaction_2),
+     xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residuals vs Fitted Values (Model 2)")
+abline(h = 0, col = "red")
+```
+
+# 10.6b: Regression with Interactions
+
+In this analysis, we explore models that include additional predictors and interaction terms to predict course evaluations (`eval`). We fit two models: one with an interaction between `beauty` and `female`, and another with an interaction between `beauty` and `nonenglish`.
+
+## Model 1: Interaction Between `beauty` and `female`
+
+This model includes an interaction term between `beauty` and `female`, allowing the effect of beauty on course evaluations to differ between male and female instructors.
+
+\[
+\text{eval} = \beta_0 + \beta_1 \times \text{beauty} + \beta_2 \times \text{female} + \beta_3 \times (\text{beauty} \times \text{female}) + \beta_4 \times \text{age} + \epsilon
+\]
+
+### Estimated Coefficients
+
+- **Intercept (\(\beta_0\))**:  
+  The intercept represents the predicted course evaluation score for a male instructor (since `female = 0`) with a beauty score of 0 and average age.  
+  \[
+  \hat{\text{eval}} = \beta_0 \text{ when beauty, female, and age are all 0.}
+  \]
+
+- **Beauty (\(\beta_1\))**:  
+  For male instructors (because `female = 0`), \(\beta_1\) represents the effect of beauty on course evaluations. Each 1-unit increase in the beauty score increases the evaluation by \(\beta_1\) points, holding all other variables constant.  
+  \[
+  \text{For male instructors, a 1-unit increase in beauty increases eval by } \beta_1 \text{ points.}
+  \]
+
+- **Female (\(\beta_2\))**:  
+  This coefficient represents the difference in evaluation scores between male and female instructors when `beauty = 0`. It indicates how much lower (or higher) female instructors' evaluations are compared to male instructors, holding beauty and age constant.  
+  \[
+  \text{Female instructors receive } \beta_2 \text{ points lower/higher than males.}
+  \]
+
+- **Interaction Between `beauty` and `female` (\(\beta_3\))**:  
+  The interaction term tells us how the effect of beauty on evaluations differs for female instructors compared to male instructors. If \(\beta_3\) is positive, beauty has a stronger effect for female instructors. If \(\beta_3\) is negative, beauty has a weaker effect for female instructors.  
+  \[
+  \text{For female instructors, the effect of beauty changes by } \beta_3 \text{ points.}
+  \]
+
+- **Age (\(\beta_4\))**:  
+  This coefficient represents the effect of the instructor's age on course evaluations, holding other variables constant. Each 1-year increase in age changes the evaluation score by \(\beta_4\) points.
+
+### Example Equation:
+
+\[
+\hat{\text{eval}} = 4.2 + 0.18 \times \text{beauty} - 0.20 \times \text{female} - 0.10 \times (\text{beauty} \times \text{female}) - 0.002 \times \text{age}
+\]
+
+- **Interpretation**:  
+  Beauty increases evaluation scores for male instructors by 0.18 points per unit, but for female instructors, beauty increases scores by a slightly smaller amount (0.18 - 0.10 = 0.08 points per unit). Female instructors also receive evaluations that are 0.20 points lower than male instructors when beauty is 0.
+
+---
+
+## Model 2: Interaction Between `beauty` and `nonenglish`
+
+This model includes an interaction between `beauty` and whether the instructor's primary language is not English (`nonenglish`).
+
+\[
+\text{eval} = \beta_0 + \beta_1 \times \text{beauty} + \beta_2 \times \text{nonenglish} + \beta_3 \times (\text{beauty} \times \text{nonenglish}) + \beta_4 \times \text{female} + \epsilon
+\]
+
+### Estimated Coefficients
+
+- **Intercept (\(\beta_0\))**:  
+  The intercept represents the predicted evaluation score for an English-speaking male instructor with a beauty score of 0.  
+  \[
+  \hat{\text{eval}} = \beta_0 \text{ when beauty and nonenglish are 0.}
+  \]
+
+- **Beauty (\(\beta_1\))**:  
+  This coefficient represents the effect of beauty on course evaluations for instructors whose primary language is English. Each 1-unit increase in the beauty score increases the evaluation score by \(\beta_1\) points, holding other variables constant.  
+  \[
+  \text{For English-speaking instructors, a 1-unit increase in beauty increases eval by } \beta_1 \text{ points.}
+  \]
+
+- **Non-English (\(\beta_2\))**:  
+  This coefficient indicates how much lower (or higher) the evaluation scores are for non-English-speaking instructors compared to English-speaking instructors when beauty is 0.  
+  \[
+  \text{Non-English-speaking instructors receive } \beta_2 \text{ points lower/higher than English-speaking instructors.}
+  \]
+
+- **Interaction Between `beauty` and `nonenglish` (\(\beta_3\))**:  
+  This coefficient captures how the effect of beauty on evaluations differs for non-English-speaking instructors compared to English-speaking instructors. A positive \(\beta_3\) indicates that beauty has a stronger effect for non-English-speaking instructors, while a negative \(\beta_3\) indicates the opposite.  
+  \[
+  \text{For non-English-speaking instructors, the effect of beauty changes by } \beta_3 \text{ points.}
+  \]
+
+- **Female (\(\beta_4\))**:  
+  This coefficient represents the effect of being female on evaluations, holding other variables constant.
+
+### Example Equation:
+
+\[
+\hat{\text{eval}} = 4.0 + 0.20 \times \text{beauty} - 0.25 \times \text{nonenglish} - 0.15 \times (\text{beauty} \times \text{nonenglish}) - 0.19 \times \text{female}
+\]
+
+**Interpretation**:  
+  Beauty increases evaluation scores by 0.20 points per unit for English-speaking instructors, but for non-English-speaking instructors, beauty has a weaker effect (0.20 - 0.15 = 0.05 points per unit). Non-English-speaking instructors receive evaluations that are 0.25 points lower than English-speaking instructors when beauty is 0.
+
+## Conclusion
+
+For each model:
+
+- **Main effects**: Represent the independent effect of a predictor (e.g., `beauty`, `female`) on the evaluation score.
+- **Interaction effects**: Capture how the effect of one predictor (e.g., `beauty`) changes depending on the value of another predictor (e.g., `female` or `nonenglish`).
+
+Each model provides insights into how various factors like beauty, gender, language, and interactions between them influence course evaluations.
+
+
+## 10.7 Predictive simulation for linear regression:
+Take one of the models from the previous exercise.
+
+### 10.7a
+Instructor A is a 50-year-old woman who is a native English speaker and has a beauty score of -1. Instructor B is a 60-year-old man who is a native English speaker and has a beauty score of -0.5. Simulate 1000 random draws of the course evaluation rating of these two instructors. In your simulation, use `posterior_predict` to account for the uncertainty in the regression parameters as well as predictive uncertainty. 
+
+```{r}
+set.seed(1)
+fit_interaction <- stan_glm(eval ~ beauty * female + age, data = beauty_data, family = gaussian())
+
+new_instructors <- data.frame(
+  beauty = c(-1, -0.5),  
+  female = c(1, 0),     
+  age = c(50, 60)       
+)
+
+
+posterior_draws <- posterior_predict(fit_interaction, newdata = new_instructors, draws = 1000)
+
+
+eval_A <- posterior_draws[, 1] 
+eval_B <- posterior_draws[, 2]  
+
+```
+
+### 10.7b
+Make a histogram of the difference between the course evaluations for A and B. What is the probability that A will have a higher evaluation? 
+
+```{r}
+eval_diff <- eval_A - eval_B
+
+ggplot(data.frame(eval_diff), aes(x = eval_diff)) +
+  geom_histogram(binwidth = 0.1, fill = "blue", color = "black", alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Histogram of Evaluation Differences (A - B)", 
+       x = "Difference in Evaluation", y = "Frequency") +
+  theme_minimal()
+
+prob_A_higher <- mean(eval_diff > 0)
+prob_A_higher
+```
+The probability that Instructor A has a higher evaluation than Instructor B is computed by checking how often the difference (`eval_diff`) is greater than 0.
+
+## 10.8 How many simulation draws: 
+Take the model from Exercise 10.6 that predicts course evaluations from beauty and other predictors. 
+
+### 10.8a
+Display and discuss the fitted model. Focus on the estimate and standard error for the coefficient of beauty. 
+
+```{r}
+set.seed(1)
+model <- lm(eval ~ beauty + female + age + minority + nonenglish + lower, data = beauty_data)
+
+
+summary(model)
+```
+
+```{R}
+beauty_coef <- summary(model)$coefficients["beauty", ]
+beauty_coef
+```
+
+### 10.8b
+Compute the median and mad sd of the posterior simulations of the coefficient of beauty, and check that these are the same as the output from printing the fit. 
+
+```{r}
+fit <- stan_glm(eval ~ beauty + female + age + minority + nonenglish + lower, data = beauty_data, family = gaussian())
+
+summary(fit)
+
+```
+
+```{r}
+posterior_samples <- as.matrix(fit)
+
+beauty_posterior <- posterior_samples[, "beauty"]
+
+beauty_median <- median(beauty_posterior)
+
+beauty_mad_sd <- mad(beauty_posterior) * 1.4826
+
+beauty_median
+beauty_mad_sd
+```
+
+### 10.8c
+Fit again, this time setting `iter` = 1000 in your `stan_glm` call. Do this a few times in order to get a sense of the simulation variability. 
+
+```{r}
+fit_1000_1 <- stan_glm(eval ~ beauty + female + age + minority + nonenglish + lower, 
+                       data = beauty_data, family = gaussian(), iter = 1000)
+
+fit_1000_2 <- stan_glm(eval ~ beauty + female + age + minority + nonenglish + lower, 
+                       data = beauty_data, family = gaussian(), iter = 1000)
+
+fit_1000_3 <- stan_glm(eval ~ beauty + female + age + minority + nonenglish + lower, 
+                       data = beauty_data, family = gaussian(), iter = 1000)
+
+summary(fit_1000_1)
+
+```
+```{r}
+posterior_1000_1 <- as.matrix(fit_1000_1)[, "beauty"]
+posterior_1000_2 <- as.matrix(fit_1000_2)[, "beauty"]
+posterior_1000_3 <- as.matrix(fit_1000_3)[, "beauty"]
+
+beauty_medians <- c(
+  run1 = median(posterior_1000_1),
+  run2 = median(posterior_1000_2),
+  run3 = median(posterior_1000_3)
+)
+
+beauty_mad_sds <- c(
+  run1 = mad(posterior_1000_1) * 1.4826,
+  run2 = mad(posterior_1000_2) * 1.4826,
+  run3 = mad(posterior_1000_3) * 1.4826
+)
+
+beauty_medians
+beauty_mad_sds
+```
+### 10.8d
+Repeat the previous step, setting `iter` = 100 and then `iter` = 10. 
+
+```{r}
+fit_100_1 <- stan_glm(eval ~ beauty + female + age + minority + nonenglish + lower, 
+                      data = beauty_data, family = gaussian(), iter = 100)
+
+fit_100_2 <- stan_glm(eval ~ beauty + female + age + minority + nonenglish + lower, 
+                      data = beauty_data, family = gaussian(), iter = 100)
+
+fit_100_3 <- stan_glm(eval ~ beauty + female + age + minority + nonenglish + lower, 
+                      data = beauty_data, family = gaussian(), iter = 100)
+
+posterior_100_1 <- as.matrix(fit_100_1)[, "beauty"]
+posterior_100_2 <- as.matrix(fit_100_2)[, "beauty"]
+posterior_100_3 <- as.matrix(fit_100_3)[, "beauty"]
+
+beauty_medians_100 <- c(
+  run1 = median(posterior_100_1),
+  run2 = median(posterior_100_2),
+  run3 = median(posterior_100_3)
+)
+
+beauty_mad_sds_100 <- c(
+  run1 = mad(posterior_100_1) * 1.4826,
+  run2 = mad(posterior_100_2) * 1.4826,
+  run3 = mad(posterior_100_3) * 1.4826
+)
+
+beauty_medians_100
+beauty_mad_sds_100
+
+```
+```{r}
+fit_10_1 <- stan_glm(eval ~ beauty + female + age + minority + nonenglish + lower, 
+                     data = beauty_data, family = gaussian(), iter = 10)
+
+fit_10_2 <- stan_glm(eval ~ beauty + female + age + minority + nonenglish + lower, 
+                     data = beauty_data, family = gaussian(), iter = 10)
+
+fit_10_3 <- stan_glm(eval ~ beauty + female + age + minority + nonenglish + lower, 
+                     data = beauty_data, family = gaussian(), iter = 10)
+
+posterior_10_1 <- as.matrix(fit_10_1)[, "beauty"]
+posterior_10_2 <- as.matrix(fit_10_2)[, "beauty"]
+posterior_10_3 <- as.matrix(fit_10_3)[, "beauty"]
+
+beauty_medians_10 <- c(
+  run1 = median(posterior_10_1),
+  run2 = median(posterior_10_2),
+  run3 = median(posterior_10_3)
+)
+
+beauty_mad_sds_10 <- c(
+  run1 = mad(posterior_10_1) * 1.4826,
+  run2 = mad(posterior_10_2) * 1.4826,
+  run3 = mad(posterior_10_3) * 1.4826
+)
+
+beauty_medians_10
+beauty_mad_sds_10
+```
+### 10.8e
+How many simulations were needed to give a good approximation to the mean and standard error for the coefficient of beauty? 
+
+I prefer 1000 times, for 100 and 10 both get warnings about ESS.   
